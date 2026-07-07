@@ -155,7 +155,7 @@
         <input type="text" id="channel-input" placeholder="Twitch Channel">
         <button id="connect-btn">Connect & Load Chatters</button>
         <div id="status">
-            Enter a channel name (e.g., <i>xqc</i>, <i>hasanabi</i>, or your own).<br>
+            Enter a channel name (e.g., <i>trizze</i>, <i>trizze</i>, or your own).<br>
             The game will listen to live chat and add the next 6 chatters to the race!
         </div>
         <ul id="chatter-list"></ul>
@@ -316,7 +316,7 @@
             });
         }
         
-                // The core game loop
+                       // The core game loop (High Drama Edition)
         function updateRace() {
             if (!isRacing) return;
             
@@ -326,15 +326,33 @@
             bikes.forEach(bike => {
                 let currentLeft = parseFloat(bike.style.left || 0);
                 
-                // --- SPEED ADJUSTMENT HERE ---
-                // I lowered the random multiplier and the minimum speed.
-                // Tweak these two numbers if you want to dial it in further!
-                let speed = (Math.random() * 0.15) + 0.02; 
+                // Fetch the bike's current speed (or start at a slow 0.05)
+                let currentSpeed = parseFloat(bike.dataset.speed || 0.05);
+        
+                // 1. Natural Momentum: Drift slightly faster or slower smoothly
+                currentSpeed += (Math.random() * 0.06) - 0.03;
+        
+                // 2. High Drama Events!
+                let randomEvent = Math.random();
+                if (randomEvent < 0.015) {
+                    // 1.5% chance per frame for a massive Nitrous Boost
+                    currentSpeed += 0.4;
+                } else if (randomEvent > 0.985) {
+                    // 1.5% chance per frame to hit a Pothole and stall out
+                    currentSpeed = 0.005;
+                }
+        
+                // 3. Speed Limits: Prevent going backwards or teleporting too fast
+                currentSpeed = Math.max(0.01, Math.min(currentSpeed, 0.8));
+        
+                // Save the speed for the next frame
+                bike.dataset.speed = currentSpeed;
                 
-                let newLeft = currentLeft + speed;
-                
+                // Move the bike
+                let newLeft = currentLeft + currentSpeed;
                 bike.style.left = newLeft + '%';
         
+                // Check for the finish line
                 if (newLeft >= 85) {
                     finished = true;
                     declareWinner(bike.dataset.name);
@@ -345,7 +363,6 @@
                 animationId = requestAnimationFrame(updateRace);
             }
         }
-
         // End Game logic
         function declareWinner(name) {
             isRacing = false;
