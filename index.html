@@ -4,10 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pixel Twitch Bike Race</title>
-    <!-- Pixel Art Font -->
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-    <!-- Twitch Messaging Interface Library -->
-    <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
     
     <style>
         /* === GAME STYLING === */
@@ -27,7 +24,6 @@
             line-height: 1.5;
         }
 
-        /* Setup Screen */
         #setup-screen {
             display: flex;
             flex-direction: column;
@@ -75,7 +71,6 @@
         ul { list-style: none; padding: 0; text-align: center; }
         li { margin: 10px 0; color: #2ecc71; font-size: 12px; }
 
-        /* Race Track */
         #race-screen { display: none; padding-top: 20px; }
         
         #track-container {
@@ -110,7 +105,6 @@
             z-index: 1;
         }
 
-        /* Bikes */
         .bike-wrapper {
             position: absolute;
             left: 0;
@@ -135,13 +129,11 @@
         .bike {
             width: 48px;
             height: 48px;
-            /* Pixel Art SVG Bike built using a Data URI */
             background-image: url('data:image/svg+xml;utf8,<svg width="64" height="64" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="9" width="5" height="5" fill="%23555"/><rect x="2" y="10" width="3" height="3" fill="%23ccc"/><rect x="10" y="9" width="5" height="5" fill="%23555"/><rect x="11" y="10" width="3" height="3" fill="%23ccc"/><rect x="3" y="9" width="6" height="2" fill="%233498db"/><rect x="8" y="5" width="2" height="6" fill="%233498db"/><rect x="3" y="4" width="3" height="2" fill="%23ecf0f1"/><rect x="2" y="5" width="2" height="4" fill="%233498db"/><rect x="8" y="4" width="4" height="2" fill="%23ecf0f1"/></svg>');
             background-size: cover;
             image-rendering: pixelated;
         }
 
-        /* Winner Modal */
         #winner-modal {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -154,12 +146,10 @@
         }
         
         .trophy { font-size: 60px; margin-bottom: 20px; }
-
     </style>
 </head>
 <body>
 
-    <!-- SETUP SCREEN -->
     <div id="setup-screen">
         <h1>Twitch Pixel<br>Bike Race</h1>
         <input type="text" id="channel-input" placeholder="Twitch Channel">
@@ -172,12 +162,10 @@
         <button id="start-race-btn" style="display:none;">Start Race Now!</button>
     </div>
 
-    <!-- RACE SCREEN -->
     <div id="race-screen">
         <div id="track-container"></div>
     </div>
 
-    <!-- WINNER MODAL -->
     <div id="winner-modal">
         <div class="trophy">🏆</div>
         <h2 id="winner-name"></h2>
@@ -185,10 +173,9 @@
         <button id="new-channel-btn">New Channel</button>
     </div>
 
-    <!-- GAME LOGIC -->
     <script>
         let chatters = [];
-        let client = null;
+        let ws = null;
         let animationId;
         const MAX_RACERS = 6;
         let isRacing = false;
@@ -205,50 +192,77 @@
         const winnerModal = document.getElementById('winner-modal');
         const winnerNameText = document.getElementById('winner-name');
 
-        // Connect to Twitch and listen for chatters
+        // Connect natively to Twitch using WebSockets
         connectBtn.addEventListener('click', () => {
             let channel = channelInput.value.trim().toLowerCase();
             if(!channel) return;
-            
-            // Remove '#' if user typed it
             channel = channel.replace('#', '');
 
             statusDiv.innerHTML = "Connecting to <b>" + channel + "</b>...";
             connectBtn.disabled = true;
 
-            client = new tmi.Client({
-                channels: [ channel ]
-            });
+            // Generate an anonymous user ID
+            const anonUser = 'justinfan' + Math.floor(Math.random() * 80000 + 1000);
+            
+            // Connect to Twitch IRC WebSocket
+            ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
 
-            client.connect().then(() => {
+            ws.onopen = () => {
+                ws.send('CAP REQ :twitch.tv/tags'); // Request display names
+                ws.send('PASS SCHMOOPIIE');
+                ws.send(`NICK ${anonUser}`);
+                ws.send(`JOIN #${channel}`);
+                
                 statusDiv.innerHTML = "Connected! Waiting for people to type in chat...<br>(Racers loaded: 0/" + MAX_RACERS + ")";
                 startRaceBtn.style.display = 'block';
-            }).catch(err => {
+            };
+
+            ws.onerror = (err) => {
                 statusDiv.innerText = "Error connecting to Twitch.";
                 connectBtn.disabled = false;
-                console.error(err);
-            });
+            };
 
-            client.on('message', (channel, tags, message, self) => {
-                const username = tags['display-name'] || tags.username;
+            ws.onmessage = (event) => {
+                const messages = event.data.split('\r\n');
                 
-                // Add unique chatters to the list
-                if(!chatters.includes(username) && chatters.length < MAX_RACERS) {
-                    chatters.push(username);
-                    
-                    const li = document.createElement('li');
-                    li.innerText = username;
-                    chatterList.appendChild(li);
+                messages.forEach(msg => {
+                    if (!msg) return;
 
-                    statusDiv.innerHTML = "Connected! Waiting for people to type in chat...<br>(Racers loaded: " + chatters.length + "/" + MAX_RACERS + ")";
+                    // Twitch requires us to play ping-pong to keep the connection alive
+                    if (msg.startsWith('PING')) {
+                        ws.send('PONG :tmi.twitch.tv');
+                    } 
+                    // Handle actual chat messages
+                    else if (msg.includes('PRIVMSG')) {
+                        // Extract the chatter's display name using Regex
+                        const nameMatch = msg.match(/display-name=([^;\s]+)/);
+                        let username = nameMatch && nameMatch[1] ? nameMatch[1] : null;
 
-                    if(chatters.length >= MAX_RACERS) {
-                        statusDiv.innerHTML = "Max racers reached! Starting race automatically...";
-                        client.disconnect();
-                        setTimeout(startRace, 1500);
+                        // Fallback logic if display-name is somehow empty
+                        if (!username) {
+                            const userMatch = msg.match(/^:([^!]+)!/);
+                            username = userMatch ? userMatch[1] : null;
+                        }
+
+                        // Add unique chatters to the race
+                        if(username && !chatters.includes(username) && chatters.length < MAX_RACERS) {
+                            chatters.push(username);
+                            
+                            const li = document.createElement('li');
+                            li.innerText = username;
+                            chatterList.appendChild(li);
+
+                            statusDiv.innerHTML = "Connected! Waiting for people to type in chat...<br>(Racers loaded: " + chatters.length + "/" + MAX_RACERS + ")";
+
+                            if(chatters.length >= MAX_RACERS) {
+                                statusDiv.innerHTML = "Max racers reached! Starting race automatically...";
+                                ws.close(); // Disconnect safely
+                                setTimeout(startRace, 1500);
+                            }
+                        }
                     }
-                }
-            });
+                });
+            };
         });
 
         // Manual Start
@@ -257,7 +271,7 @@
                 alert("Wait for at least 1 person to chat, or type in chat yourself!");
                 return;
             }
-            if (client) client.disconnect();
+            if (ws && ws.readyState === WebSocket.OPEN) ws.close();
             startRace();
         });
 
@@ -275,7 +289,6 @@
         function buildTracks() {
             trackContainer.innerHTML = '';
             
-            // Generate Finish Line
             const finishLine = document.createElement('div');
             finishLine.className = 'finish-line';
             trackContainer.appendChild(finishLine);
@@ -313,14 +326,12 @@
             bikes.forEach(bike => {
                 let currentLeft = parseFloat(bike.style.left || 0);
                 
-                // Randomly advance the bike by a small increment each frame
-                // Formula: random number between 0.05 and 0.40
+                // Randomly advance the bike
                 let speed = (Math.random() * 0.35) + 0.05; 
                 let newLeft = currentLeft + speed;
                 
                 bike.style.left = newLeft + '%';
 
-                // Check if they crossed the finish line (85% matches the CSS finish line position)
                 if (newLeft >= 85) {
                     finished = true;
                     declareWinner(bike.dataset.name);
@@ -343,13 +354,13 @@
         // Button Listeners for restarting
         document.getElementById('restart-btn').addEventListener('click', () => {
             winnerModal.style.display = 'none';
-            buildTracks(); // Resets positions back to 0%
+            buildTracks(); 
             isRacing = true;
             animationId = requestAnimationFrame(updateRace);
         });
 
         document.getElementById('new-channel-btn').addEventListener('click', () => {
-            location.reload(); // Quickest way to clean state
+            location.reload(); 
         });
     </script>
 </body>
