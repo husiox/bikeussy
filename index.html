@@ -316,7 +316,7 @@
             });
         }
         
-                       // The core game loop (High Drama Edition)
+        // The core game loop (Slow & Dramatic Edition)
         function updateRace() {
             if (!isRacing) return;
             
@@ -326,24 +326,26 @@
             bikes.forEach(bike => {
                 let currentLeft = parseFloat(bike.style.left || 0);
                 
-                // Fetch the bike's current speed (or start at a slow 0.05)
-                let currentSpeed = parseFloat(bike.dataset.speed || 0.05);
+                // Start at a very slow pace: 0.01% per frame
+                let currentSpeed = parseFloat(bike.dataset.speed || 0.01);
         
-                // 1. Natural Momentum: Drift slightly faster or slower smoothly
-                currentSpeed += (Math.random() * 0.06) - 0.03;
+                // 1. Natural Momentum: Very tiny adjustments per frame
+                currentSpeed += (Math.random() * 0.01) - 0.005;
         
-                // 2. High Drama Events!
+                // 2. High Drama Events! (1.5% chance per frame)
                 let randomEvent = Math.random();
                 if (randomEvent < 0.015) {
-                    // 1.5% chance per frame for a massive Nitrous Boost
-                    currentSpeed += 0.4;
+                    // Nitrous Boost: A noticeable jump, but not a teleport
+                    currentSpeed += 0.08;
                 } else if (randomEvent > 0.985) {
-                    // 1.5% chance per frame to hit a Pothole and stall out
-                    currentSpeed = 0.005;
+                    // Pothole: Slam on the brakes
+                    currentSpeed = 0.001;
                 }
         
-                // 3. Speed Limits: Prevent going backwards or teleporting too fast
-                currentSpeed = Math.max(0.01, Math.min(currentSpeed, 0.8));
+                // 3. Speed Limits: Max speed capped at 0.15% per frame
+                // At max speed, it takes about 10 seconds to cross the screen.
+                // At average speed, it takes about 25-30 seconds.
+                currentSpeed = Math.max(0.001, Math.min(currentSpeed, 0.15));
         
                 // Save the speed for the next frame
                 bike.dataset.speed = currentSpeed;
