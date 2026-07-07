@@ -315,29 +315,32 @@
                 trackContainer.appendChild(track);
             });
         }
-
-        // The core game loop
+        
+                // The core game loop
         function updateRace() {
             if (!isRacing) return;
             
             let finished = false;
             const bikes = document.querySelectorAll('.bike-wrapper');
-
+        
             bikes.forEach(bike => {
                 let currentLeft = parseFloat(bike.style.left || 0);
                 
-                // Randomly advance the bike
-                let speed = (Math.random() * 0.35) + 0.05; 
+                // --- SPEED ADJUSTMENT HERE ---
+                // I lowered the random multiplier and the minimum speed.
+                // Tweak these two numbers if you want to dial it in further!
+                let speed = (Math.random() * 0.15) + 0.02; 
+                
                 let newLeft = currentLeft + speed;
                 
                 bike.style.left = newLeft + '%';
-
+        
                 if (newLeft >= 85) {
                     finished = true;
                     declareWinner(bike.dataset.name);
                 }
             });
-
+        
             if (!finished) {
                 animationId = requestAnimationFrame(updateRace);
             }
