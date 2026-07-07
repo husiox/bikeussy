@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Twitch Bike Race</title>
+    <!-- Pixel Art Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <!-- Twitch Messaging Interface Library -->
+    <script src="https://cdn.jsdelivr.net/npm/tmi.js@1.8.5/dist/tmi.min.js"></script>
+    
+    <style>
+        /* === GAME STYLING === */
+        body {
+            background-color: #1a1a2e;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #f1c40f;
+            text-shadow: 4px 4px 0 #e74c3c;
+            line-height: 1.5;
+        }
+
+        /* Setup Screen */
+        #setup-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+        }
+
+        input {
+            font-family: 'Press Start 2P', cursive;
+            padding: 15px;
+            margin: 20px;
+            font-size: 16px;
+            border: 4px solid #fff;
+            background: #000;
+            color: #2ecc71;
+            text-align: center;
+            width: 300px;
+        }
+
+        button {
+            font-family: 'Press Start 2P', cursive;
+            padding: 15px 20px;
+            margin: 10px;
+            font-size: 14px;
+            border: 4px solid #fff;
+            background: #e74c3c;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #fff;
+            color: #e74c3c;
+        }
+
+        #status {
+            margin-top: 20px;
+            color: #3498db;
+            font-size: 12px;
+            line-height: 1.8;
+            text-align: center;
+        }
+
+        ul { list-style: none; padding: 0; text-align: center; }
+        li { margin: 10px 0; color: #2ecc71; font-size: 12px; }
+
+        /* Race Track */
+        #race-screen { display: none; padding-top: 20px; }
+        
+        #track-container {
+            position: relative;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .track {
+            position: relative;
+            height: 70px;
+            border-bottom: 4px dashed #444;
+            display: flex;
+            align-items: center;
+        }
+
+        .finish-line {
+            position: absolute;
+            left: 85%;
+            top: 0;
+            bottom: 0;
+            width: 30px;
+            background: repeating-linear-gradient(
+                0deg,
+                #fff,
+                #fff 15px,
+                #000 15px,
+                #000 30px
+            );
+            border-left: 6px solid #f1c40f;
+            z-index: 1;
+        }
+
+        /* Bikes */
+        .bike-wrapper {
+            position: absolute;
+            left: 0;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: translateY(-5px);
+        }
+
+        .name-label {
+            font-size: 10px;
+            margin-bottom: 5px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 4px 6px;
+            border: 2px solid #fff;
+            border-radius: 4px;
+            white-space: nowrap;
+            color: #fff;
+        }
+
+        .bike {
+            width: 48px;
+            height: 48px;
+            /* Pixel Art SVG Bike built using a Data URI */
+            background-image: url('data:image/svg+xml;utf8,<svg width="64" height="64" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="9" width="5" height="5" fill="%23555"/><rect x="2" y="10" width="3" height="3" fill="%23ccc"/><rect x="10" y="9" width="5" height="5" fill="%23555"/><rect x="11" y="10" width="3" height="3" fill="%23ccc"/><rect x="3" y="9" width="6" height="2" fill="%233498db"/><rect x="8" y="5" width="2" height="6" fill="%233498db"/><rect x="3" y="4" width="3" height="2" fill="%23ecf0f1"/><rect x="2" y="5" width="2" height="4" fill="%233498db"/><rect x="8" y="4" width="4" height="2" fill="%23ecf0f1"/></svg>');
+            background-size: cover;
+            image-rendering: pixelated;
+        }
+
+        /* Winner Modal */
+        #winner-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .trophy { font-size: 60px; margin-bottom: 20px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen">
+        <h1>Twitch Pixel<br>Bike Race</h1>
+        <input type="text" id="channel-input" placeholder="Twitch Channel">
+        <button id="connect-btn">Connect & Load Chatters</button>
+        <div id="status">
+            Enter a channel name (e.g., <i>xqc</i>, <i>hasanabi</i>, or your own).<br>
+            The game will listen to live chat and add the next 6 chatters to the race!
+        </div>
+        <ul id="chatter-list"></ul>
+        <button id="start-race-btn" style="display:none;">Start Race Now!</button>
+    </div>
+
+    <!-- RACE SCREEN -->
+    <div id="race-screen">
+        <div id="track-container"></div>
+    </div>
+
+    <!-- WINNER MODAL -->
+    <div id="winner-modal">
+        <div class="trophy">🏆</div>
+        <h2 id="winner-name"></h2>
+        <button id="restart-btn">Race Same Chatters</button>
+        <button id="new-channel-btn">New Channel</button>
+    </div>
+
+    <!-- GAME LOGIC -->
+    <script>
+        let chatters = [];
+        let client = null;
+        let animationId;
+        const MAX_RACERS = 6;
+        let isRacing = false;
+
+        // UI Elements
+        const connectBtn = document.getElementById('connect-btn');
+        const channelInput = document.getElementById('channel-input');
+        const statusDiv = document.getElementById('status');
+        const chatterList = document.getElementById('chatter-list');
+        const startRaceBtn = document.getElementById('start-race-btn');
+        const setupScreen = document.getElementById('setup-screen');
+        const raceScreen = document.getElementById('race-screen');
+        const trackContainer = document.getElementById('track-container');
+        const winnerModal = document.getElementById('winner-modal');
+        const winnerNameText = document.getElementById('winner-name');
+
+        // Connect to Twitch and listen for chatters
+        connectBtn.addEventListener('click', () => {
+            let channel = channelInput.value.trim().toLowerCase();
+            if(!channel) return;
+            
+            // Remove '#' if user typed it
+            channel = channel.replace('#', '');
+
+            statusDiv.innerHTML = "Connecting to <b>" + channel + "</b>...";
+            connectBtn.disabled = true;
+
+            client = new tmi.Client({
+                channels: [ channel ]
+            });
+
+            client.connect().then(() => {
+                statusDiv.innerHTML = "Connected! Waiting for people to type in chat...<br>(Racers loaded: 0/" + MAX_RACERS + ")";
+                startRaceBtn.style.display = 'block';
+            }).catch(err => {
+                statusDiv.innerText = "Error connecting to Twitch.";
+                connectBtn.disabled = false;
+                console.error(err);
+            });
+
+            client.on('message', (channel, tags, message, self) => {
+                const username = tags['display-name'] || tags.username;
+                
+                // Add unique chatters to the list
+                if(!chatters.includes(username) && chatters.length < MAX_RACERS) {
+                    chatters.push(username);
+                    
+                    const li = document.createElement('li');
+                    li.innerText = username;
+                    chatterList.appendChild(li);
+
+                    statusDiv.innerHTML = "Connected! Waiting for people to type in chat...<br>(Racers loaded: " + chatters.length + "/" + MAX_RACERS + ")";
+
+                    if(chatters.length >= MAX_RACERS) {
+                        statusDiv.innerHTML = "Max racers reached! Starting race automatically...";
+                        client.disconnect();
+                        setTimeout(startRace, 1500);
+                    }
+                }
+            });
+        });
+
+        // Manual Start
+        startRaceBtn.addEventListener('click', () => {
+            if (chatters.length === 0) {
+                alert("Wait for at least 1 person to chat, or type in chat yourself!");
+                return;
+            }
+            if (client) client.disconnect();
+            startRace();
+        });
+
+        function startRace() {
+            setupScreen.style.display = 'none';
+            winnerModal.style.display = 'none';
+            raceScreen.style.display = 'block';
+            isRacing = true;
+
+            buildTracks();
+            animationId = requestAnimationFrame(updateRace);
+        }
+
+        // Build the physical HTML tracks based on the chatters array
+        function buildTracks() {
+            trackContainer.innerHTML = '';
+            
+            // Generate Finish Line
+            const finishLine = document.createElement('div');
+            finishLine.className = 'finish-line';
+            trackContainer.appendChild(finishLine);
+
+            chatters.forEach((chatter) => {
+                const track = document.createElement('div');
+                track.className = 'track';
+
+                const bikeWrap = document.createElement('div');
+                bikeWrap.className = 'bike-wrapper';
+                bikeWrap.dataset.name = chatter;
+                bikeWrap.style.left = '0%';
+
+                const nameLabel = document.createElement('div');
+                nameLabel.className = 'name-label';
+                nameLabel.innerText = chatter;
+
+                const bikeImg = document.createElement('div');
+                bikeImg.className = 'bike';
+
+                bikeWrap.appendChild(nameLabel);
+                bikeWrap.appendChild(bikeImg);
+                track.appendChild(bikeWrap);
+                trackContainer.appendChild(track);
+            });
+        }
+
+        // The core game loop
+        function updateRace() {
+            if (!isRacing) return;
+            
+            let finished = false;
+            const bikes = document.querySelectorAll('.bike-wrapper');
+
+            bikes.forEach(bike => {
+                let currentLeft = parseFloat(bike.style.left || 0);
+                
+                // Randomly advance the bike by a small increment each frame
+                // Formula: random number between 0.05 and 0.40
+                let speed = (Math.random() * 0.35) + 0.05; 
+                let newLeft = currentLeft + speed;
+                
+                bike.style.left = newLeft + '%';
+
+                // Check if they crossed the finish line (85% matches the CSS finish line position)
+                if (newLeft >= 85) {
+                    finished = true;
+                    declareWinner(bike.dataset.name);
+                }
+            });
+
+            if (!finished) {
+                animationId = requestAnimationFrame(updateRace);
+            }
+        }
+
+        // End Game logic
+        function declareWinner(name) {
+            isRacing = false;
+            cancelAnimationFrame(animationId);
+            winnerNameText.innerText = name + " WINS!";
+            winnerModal.style.display = 'flex';
+        }
+
+        // Button Listeners for restarting
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            winnerModal.style.display = 'none';
+            buildTracks(); // Resets positions back to 0%
+            isRacing = true;
+            animationId = requestAnimationFrame(updateRace);
+        });
+
+        document.getElementById('new-channel-btn').addEventListener('click', () => {
+            location.reload(); // Quickest way to clean state
+        });
+    </script>
+</body>
+</html>
